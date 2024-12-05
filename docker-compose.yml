@@ -1,0 +1,71 @@
+version: "3"
+services:
+  bet-maker-db:
+    image: postgres:16.2
+    ports:
+      - "5432:5432"
+    volumes:
+      - app1-db-data:/var/lib/postgresql/data/pgdata
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_SERVER=bet-maker-db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=bet-maker
+    restart: always
+
+  bet-maker:
+    build:
+      context: ./bet-maker
+      dockerfile: Dockerfile
+    depends_on:
+      - bet-maker-db
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./bet-maker:/app
+      - ./bet-maker/alembic.ini:/app/alembic.ini
+    environment:
+      - DATABASE_DSN=postgresql://postgres:password@bet-maker-db:5432/bet-maker
+      - BACKEND_CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
+    command: sh -c "alembic upgrade head && uvicorn --host 0.0.0.0 --port 8000 app.main:app"
+    restart: always
+
+  line-provider-db:
+    image: postgres:16.2
+    ports:
+      - "5433:5432"
+    volumes:
+      - app2-db-data:/var/lib/postgresql/data/pgdata
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_SERVER=line-provider-db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=line-provider
+    restart: always
+
+  line-provider:
+    build:
+      context: ./line-provider
+      dockerfile: Dockerfile
+    depends_on:
+      - line-provider-db
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./line-provider:/src
+      - ./line-provider/alembic.ini:/src/alembic.ini
+    environment:
+      - DATABASE_DSN=postgresql://postgres:password@line-provider-db:5432/line-provider
+      - BACKEND_CORS_ORIGINS=["http://localhost:3000","http://localhost:5000"]
+    command: sh -c "alembic upgrade head && uvicorn --host 0.0.0.0 --port 5000 src.main:app"
+    restart: always
+
+networks:
+  shared_network:
+    driver: bridge
+
+volumes:
+  app1-db-data:
+  app2-db-data:
